@@ -1,0 +1,41 @@
+---
+- name: Install Vector
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: install_binary
+  vars:
+    common_ib_name: vector
+    common_ib_url: "https://github.com/vectordotdev/vector/releases/download/v{{ vector_version }}/vector-{{ vector_version }}-x86_64-unknown-linux-gnu.tar.gz"
+    common_ib_checksum: "sha256:https://github.com/vectordotdev/vector/releases/download/v{{ vector_version }}/vector-{{ vector_version }}-SHA256SUMS"
+    common_ib_extracted_dir: "vector-x86_64-unknown-linux-gnu"
+    common_ib_binaries: [bin/vector]
+
+- name: Create Vector directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0755"
+  loop:
+    - "{{ obs_config_dir }}/vector"
+    - "{{ obs_data_dir }}/vector"
+    - "{{ obs_log_dir }}/archive"
+
+- name: Write vector.yaml (validated with vector validate)
+  ansible.builtin.template:
+    src: vector.yaml.j2
+    dest: "{{ obs_config_dir }}/vector/vector.yaml"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0640"
+    validate: "{{ obs_install_dir }}/bin/vector validate --no-environment %s"
+  notify: Restart Vector
+
+- name: Run Vector as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: vector
+    common_svc_exec: "{{ obs_install_dir }}/bin/vector --config {{ obs_config_dir }}/vector/vector.yaml"

@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+[paths]
+data = {{ obs_data_dir }}/grafana
+logs = {{ obs_log_dir }}/grafana
+plugins = {{ obs_data_dir }}/grafana/plugins
+provisioning = {{ obs_config_dir }}/grafana/provisioning
+
+[server]
+http_port = {{ grafana_port }}
+
+[security]
+admin_user = admin
+admin_password = {{ grafana_admin_password }}
+
+[analytics]
+reporting_enabled = false
+check_for_updates = false
+
+[dashboards]
+default_home_dashboard_path = {{ obs_config_dir }}/grafana/dashboards/slo-overview.json

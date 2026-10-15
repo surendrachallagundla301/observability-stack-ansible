@@ -1,0 +1,21 @@
+---
+# Shared settings for every role.
+obs_user: observability
+obs_group: observability
+obs_install_dir: /opt/observability
+obs_config_dir: /etc/observability
+obs_data_dir: /var/lib/observability
+obs_log_dir: /var/log/observability
+
+# Set to false to render configs and install binaries without touching
+# systemd (useful inside containers that have no init system).
+obs_manage_services: true
+
+# Service level objective for the demo service (99.95% availability).
+slo_target: 0.9995
+slo_service: demo-app
+
+# Optional integrations. Leave empty to disable.
+honeycomb_api_key: ""          # OpenTelemetry traces -> Honeycomb
+gcp_project_id: ""             # Vector -> Google Cloud Logging
+gcp_credentials_path: ""       # service-account JSON on the target host

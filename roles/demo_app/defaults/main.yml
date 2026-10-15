@@ -1,0 +1,7 @@
+---
+demo_app_port: 8000
+demo_app_dir: "{{ obs_install_dir }}/demo-app"
+# Fraction of /checkout requests that fail. 0.0002 = 99.98% success (inside the SLO).
+demo_app_error_rate: 0.0002
+demo_app_loadgen_enabled: true
+demo_app_loadgen_rps: 5

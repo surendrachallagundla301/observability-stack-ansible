@@ -1,0 +1,32 @@
+---
+- name: Install statsd_exporter
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: install_binary
+  vars:
+    common_ib_name: statsd_exporter
+    common_ib_url: "https://github.com/prometheus/statsd_exporter/releases/download/v{{ statsd_exporter_version }}/statsd_exporter-{{ statsd_exporter_version }}.linux-amd64.tar.gz"
+    common_ib_checksum: "sha256:https://github.com/prometheus/statsd_exporter/releases/download/v{{ statsd_exporter_version }}/sha256sums.txt"
+    common_ib_extracted_dir: "statsd_exporter-{{ statsd_exporter_version }}.linux-amd64"
+    common_ib_binaries: [statsd_exporter]
+
+- name: Write StatsD-to-Prometheus mapping rules
+  ansible.builtin.template:
+    src: statsd_mapping.yml.j2
+    dest: "{{ obs_config_dir }}/statsd_mapping.yml"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0644"
+  notify: Restart statsd_exporter
+
+- name: Run statsd_exporter as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: statsd_exporter
+    common_svc_exec: >-
+      {{ obs_install_dir }}/bin/statsd_exporter
+      --statsd.listen-udp=:{{ statsd_exporter_udp_port }}
+      --web.listen-address=:{{ statsd_exporter_web_port }}
+      --statsd.mapping-config={{ obs_config_dir }}/statsd_mapping.yml

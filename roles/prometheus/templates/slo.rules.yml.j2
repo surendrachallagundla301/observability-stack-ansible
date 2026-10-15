@@ -1,0 +1,52 @@
+# {{ ansible_managed }}
+# Availability SLO for {{ slo_service }}: {{ (slo_target * 100) | round(3) }}% of requests succeed.
+# Error budget = 1 - SLO = {{ '%.6f' | format(1 - slo_target) }}.
+# Alerting follows the multi-window, multi-burn-rate approach from the
+# Google SRE Workbook: a long window proves the burn is significant, a short
+# window proves it is still happening (so alerts resolve quickly).
+{% set budget = '%.6f' | format(1 - slo_target) %}
+{% set sel = 'job="' ~ slo_service ~ '"' %}
+groups:
+  - name: slo-recording
+    rules:
+{% for window in ['5m', '30m', '1h', '2h', '6h', '1d', '3d', '30d'] %}
+      - record: slo:sli_error:ratio_rate{{ window }}
+        expr: |
+          sum(rate(http_requests_total{ {{- sel }},status=~"5.."}[{{ window }}]))
+          /
+          sum(rate(http_requests_total{ {{- sel }}}[{{ window }}]))
+        labels:
+          service: {{ slo_service }}
+{% endfor %}
+      - record: slo:error_budget_remaining:ratio
+        expr: 1 - (slo:sli_error:ratio_rate30d{service="{{ slo_service }}"} / {{ budget }})
+        labels:
+          service: {{ slo_service }}
+
+  - name: slo-alerts
+    rules:
+{% set alerts = [
+  {'name': 'SLOErrorBudgetBurnFast',   'factor': 14.4, 'long': '1h', 'short': '5m',  'for': '2m',  'severity': 'page',
+   'text': '2% of the 30-day error budget burned in 1 hour'},
+  {'name': 'SLOErrorBudgetBurnMedium', 'factor': 6,    'long': '6h', 'short': '30m', 'for': '15m', 'severity': 'page',
+   'text': '5% of the 30-day error budget burned in 6 hours'},
+  {'name': 'SLOErrorBudgetBurnSlow',   'factor': 3,    'long': '1d', 'short': '2h',  'for': '1h',  'severity': 'ticket',
+   'text': '10% of the 30-day error budget burned in 1 day'},
+  {'name': 'SLOErrorBudgetBurnSteady', 'factor': 1,    'long': '3d', 'short': '6h',  'for': '3h',  'severity': 'ticket',
+   'text': '10% of the 30-day error budget burned in 3 days'},
+] %}
+{% for a in alerts %}
+      - alert: {{ a.name }}
+        expr: |
+          slo:sli_error:ratio_rate{{ a.long }}{service="{{ slo_service }}"} > ({{ a.factor }} * {{ budget }})
+          and
+          slo:sli_error:ratio_rate{{ a.short }}{service="{{ slo_service }}"} > ({{ a.factor }} * {{ budget }})
+        for: {{ a.for }}
+        labels:
+          severity: {{ a.severity }}
+          slo: availability
+        annotations:
+          summary: "{{ slo_service }} is burning its error budget {{ a.factor }}x too fast"
+          description: "{{ a.text }} (SLO {{ (slo_target * 100) | round(3) }}%)."
+          runbook_url: "https://github.com/surendrachallagundla301/observability-stack-ansible/blob/main/docs/runbook.md#{{ a.name | lower }}"
+{% endfor %}

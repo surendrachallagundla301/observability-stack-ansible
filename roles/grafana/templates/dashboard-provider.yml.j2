@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+apiVersion: 1
+providers:
+  - name: observability-stack
+    folder: Observability
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: {{ obs_config_dir }}/grafana/dashboards

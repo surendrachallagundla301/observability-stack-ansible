@@ -1,0 +1,23 @@
+---
+# Required vars: common_ib_name, common_ib_url, common_ib_checksum, common_ib_extracted_dir, common_ib_binaries
+- name: "Download {{ common_ib_name }}"
+  ansible.builtin.get_url:
+    url: "{{ common_ib_url }}"
+    dest: "{{ obs_install_dir }}/src/{{ common_ib_url | basename }}"
+    checksum: "{{ common_ib_checksum }}"
+    mode: "0644"
+
+- name: "Extract {{ common_ib_name }}"
+  ansible.builtin.unarchive:
+    src: "{{ obs_install_dir }}/src/{{ common_ib_url | basename }}"
+    dest: "{{ obs_install_dir }}/src"
+    remote_src: true
+    creates: "{{ obs_install_dir }}/src/{{ common_ib_extracted_dir }}"
+
+- name: "Install binaries for {{ common_ib_name }}"
+  ansible.builtin.copy:
+    src: "{{ obs_install_dir }}/src/{{ common_ib_extracted_dir }}/{{ item }}"
+    dest: "{{ obs_install_dir }}/bin/{{ item | basename }}"
+    remote_src: true
+    mode: "0755"
+  loop: "{{ common_ib_binaries }}"

@@ -1,0 +1,60 @@
+---
+- name: Install Prometheus and promtool
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: install_binary
+  vars:
+    common_ib_name: prometheus
+    common_ib_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+    common_ib_checksum: "sha256:https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/sha256sums.txt"
+    common_ib_extracted_dir: "prometheus-{{ prometheus_version }}.linux-amd64"
+    common_ib_binaries: [prometheus, promtool]
+
+- name: Create Prometheus config and data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0755"
+  loop:
+    - "{{ obs_config_dir }}/prometheus"
+    - "{{ obs_config_dir }}/prometheus/rules"
+    - "{{ obs_data_dir }}/prometheus"
+
+- name: Write alerting and recording rules (validated with promtool)
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ obs_config_dir }}/prometheus/rules/{{ item }}"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0644"
+    validate: "{{ obs_install_dir }}/bin/promtool check rules %s"
+  loop:
+    - slo.rules.yml
+    - infrastructure.rules.yml
+  notify: Reload Prometheus
+
+- name: Write prometheus.yml (validated with promtool)
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ obs_config_dir }}/prometheus/prometheus.yml"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0644"
+    validate: "{{ obs_install_dir }}/bin/promtool check config --syntax-only %s"
+  notify: Reload Prometheus
+
+- name: Run Prometheus as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: prometheus
+    common_svc_exec: >-
+      {{ obs_install_dir }}/bin/prometheus
+      --config.file={{ obs_config_dir }}/prometheus/prometheus.yml
+      --storage.tsdb.path={{ obs_data_dir }}/prometheus
+      --storage.tsdb.retention.time={{ prometheus_retention }}
+      --web.listen-address=:{{ prometheus_port }}
+      --web.enable-lifecycle
