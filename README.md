@@ -1,7 +1,5 @@
 # observability-stack-ansible
 
-[![CI](https://github.com/surendrachallagundla301/observability-stack-ansible/actions/workflows/ci.yml/badge.svg)](https://github.com/surendrachallagundla301/observability-stack-ansible/actions/workflows/ci.yml)
-
 Ansible roles that deploy a complete, self-monitoring observability stack (metrics, logs and traces) on Linux hosts, with **SLO-based alerting** for a 99.95% availability target.
 
 One command (`ansible-playbook site.yml`) installs and configures:
