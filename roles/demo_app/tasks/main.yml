@@ -5,7 +5,9 @@
     state: present
     update_cache: true
     cache_valid_time: 3600
-  when: ansible_facts['os_family'] == 'Debian'
+  when:
+    - demo_app_install_os_packages | bool
+    - ansible_facts['os_family'] == 'Debian'
 
 - name: Create app and log directories
   ansible.builtin.file:
