@@ -1,0 +1,7 @@
+---
+grafana_version: "11.2.0"
+grafana_port: 3000
+# Override in production, ideally from Ansible Vault.
+grafana_admin_password: "change-me"
+# Optional sha256 of the Grafana tarball; leave empty to skip verification.
+grafana_tarball_sha256: ""

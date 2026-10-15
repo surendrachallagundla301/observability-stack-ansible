@@ -1,0 +1,77 @@
+# Unit tests for the alerting rules: `promtool test rules tests/rules_test.yml`
+rule_files:
+  - build/slo.rules.yml
+  - build/infrastructure.rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  # 2% of requests failing = 40x the error budget burn rate.
+  - name: Fast burn pages within minutes; slower alerts are still pending
+    interval: 1m
+    input_series:
+      - series: 'http_requests_total{job="demo-app",route="/checkout",method="POST",status="200"}'
+        values: '0+5880x90'
+      - series: 'http_requests_total{job="demo-app",route="/checkout",method="POST",status="503"}'
+        values: '0+120x90'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels: {severity: page, slo: availability, service: demo-app}
+            exp_annotations:
+              summary: "demo-app is burning its error budget 14.4x too fast"
+              description: "2% of the 30-day error budget burned in 1 hour (SLO 99.95%)."
+              runbook_url: "https://github.com/surendrachallagundla301/observability-stack-ansible/blob/main/docs/runbook.md#sloerrorbudgetburnfast"
+      - eval_time: 10m
+        alertname: SLOErrorBudgetBurnMedium
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: SLOErrorBudgetBurnMedium
+        exp_alerts:
+          - exp_labels: {severity: page, slo: availability, service: demo-app}
+            exp_annotations:
+              summary: "demo-app is burning its error budget 6x too fast"
+              description: "5% of the 30-day error budget burned in 6 hours (SLO 99.95%)."
+              runbook_url: "https://github.com/surendrachallagundla301/observability-stack-ansible/blob/main/docs/runbook.md#sloerrorbudgetburnmedium"
+      - eval_time: 20m
+        alertname: SLOErrorBudgetBurnSlow
+        exp_alerts: []
+
+  # 0.01% of requests failing is well inside a 99.95% SLO.
+  - name: Healthy traffic never alerts and leaves budget in the bank
+    interval: 1m
+    input_series:
+      - series: 'http_requests_total{job="demo-app",route="/checkout",method="POST",status="200"}'
+        values: '0+9999x240'
+      - series: 'http_requests_total{job="demo-app",route="/checkout",method="POST",status="503"}'
+        values: '0+1x240'
+    alert_rule_test:
+      - {eval_time: 4h, alertname: SLOErrorBudgetBurnFast, exp_alerts: []}
+      - {eval_time: 4h, alertname: SLOErrorBudgetBurnMedium, exp_alerts: []}
+      - {eval_time: 4h, alertname: SLOErrorBudgetBurnSlow, exp_alerts: []}
+      - {eval_time: 4h, alertname: SLOErrorBudgetBurnSteady, exp_alerts: []}
+    promql_expr_test:
+      - expr: round(slo:error_budget_remaining:ratio, 0.001)
+        eval_time: 4h
+        exp_samples:
+          - labels: '{service="demo-app"}'
+            value: 0.8
+
+  - name: A scrape target that stops answering pages after 2 minutes
+    interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="10.0.0.5:9100"}'
+        values: '1 1 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: TargetDown
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: TargetDown
+        exp_alerts:
+          - exp_labels: {severity: page, job: node, instance: "10.0.0.5:9100"}
+            exp_annotations:
+              summary: "A scrape target has been down for 2 minutes"
+              description: "Prometheus cannot scrape one of its targets; check the alert labels for job and instance."
+              runbook_url: "https://github.com/surendrachallagundla301/observability-stack-ansible/blob/main/docs/runbook.md#targetdown"

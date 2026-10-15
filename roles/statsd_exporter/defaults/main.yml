@@ -1,0 +1,4 @@
+---
+statsd_exporter_version: "0.27.1"
+statsd_exporter_udp_port: 9125
+statsd_exporter_web_port: 9102

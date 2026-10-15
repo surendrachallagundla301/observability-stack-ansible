@@ -1,0 +1,78 @@
+# {{ ansible_managed }}
+# Pipeline: tail JSON app logs -> parse -> (1) turn into Prometheus metrics,
+# (2) archive to disk, (3) optionally ship to Google Cloud Logging / Honeycomb.
+data_dir: {{ obs_data_dir }}/vector
+
+api:
+  enabled: true
+  address: "127.0.0.1:{{ vector_api_port }}"
+
+sources:
+  app_logs:
+    type: file
+    include:
+{% for path in vector_log_paths %}
+      - "{{ path }}"
+{% endfor %}
+    read_from: end
+
+  vector_internal:
+    type: internal_metrics
+
+transforms:
+  parse_app_logs:
+    type: remap
+    inputs: [app_logs]
+    source: |
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        . = merge(., object!(parsed))
+        del(.message)
+      }
+      .level = downcase(string(.level) ?? "unknown")
+      .service = string(.service) ?? "unknown"
+
+  app_log_metrics:
+    type: log_to_metric
+    inputs: [parse_app_logs]
+    metrics:
+      - type: counter
+        field: level
+        name: log_events_total
+        namespace: ""
+        tags:
+          level: "{% raw %}{{ level }}{% endraw %}"
+          service: "{% raw %}{{ service }}{% endraw %}"
+
+sinks:
+  prometheus:
+    type: prometheus_exporter
+    inputs: [app_log_metrics, vector_internal]
+    address: "0.0.0.0:{{ vector_prometheus_port }}"
+
+  archive:
+    type: file
+    inputs: [parse_app_logs]
+    path: "{{ obs_log_dir }}/archive/{% raw %}{{ service }}{% endraw %}-%Y-%m-%d.log"
+    encoding:
+      codec: json
+{% if gcp_project_id and gcp_credentials_path %}
+
+  google_cloud_logging:
+    type: gcp_stackdriver_logs
+    inputs: [parse_app_logs]
+    project_id: "{{ gcp_project_id }}"
+    credentials_path: "{{ gcp_credentials_path }}"
+    log_id: "{% raw %}{{ service }}{% endraw %}"
+    resource:
+      type: global
+    severity_key: level
+{% endif %}
+{% if honeycomb_api_key %}
+
+  honeycomb_logs:
+    type: honeycomb
+    inputs: [parse_app_logs]
+    api_key: "{{ honeycomb_api_key }}"
+    dataset: "{{ slo_service }}-logs"
+{% endif %}

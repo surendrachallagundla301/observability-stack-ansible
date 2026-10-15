@@ -1,0 +1,28 @@
+---
+- name: Create the observability system group
+  ansible.builtin.group:
+    name: "{{ obs_group }}"
+    system: true
+
+- name: Create the observability system user
+  ansible.builtin.user:
+    name: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Create base directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0755"
+  loop:
+    - "{{ obs_install_dir }}"
+    - "{{ obs_install_dir }}/bin"
+    - "{{ obs_install_dir }}/src"
+    - "{{ obs_config_dir }}"
+    - "{{ obs_data_dir }}"
+    - "{{ obs_log_dir }}"

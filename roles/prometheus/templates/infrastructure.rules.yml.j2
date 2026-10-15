@@ -1,0 +1,34 @@
+# {{ ansible_managed }}
+groups:
+  - name: infrastructure-alerts
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "A scrape target has been down for 2 minutes"
+          description: "Prometheus cannot scrape one of its targets; check the alert labels for job and instance."
+          runbook_url: "https://github.com/surendrachallagundla301/observability-stack-ansible/blob/main/docs/runbook.md#targetdown"
+
+      - alert: NodeFilesystemAlmostFull
+        expr: |
+          (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.10
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "A filesystem has less than 10% space left"
+          description: "Free space is below 10%; check the alert labels for instance and mountpoint."
+          runbook_url: "https://github.com/surendrachallagundla301/observability-stack-ansible/blob/main/docs/runbook.md#nodefilesystemalmostfull"
+
+      - alert: ApplicationErrorLogSpike
+        expr: sum by (service) (rate(log_events_total{level="error"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Error-level log lines are above 1 per second"
+          description: "Vector is counting more than one error log line per second; check the alert labels for the service."
+          runbook_url: "https://github.com/surendrachallagundla301/observability-stack-ansible/blob/main/docs/runbook.md#applicationerrorlogspike"

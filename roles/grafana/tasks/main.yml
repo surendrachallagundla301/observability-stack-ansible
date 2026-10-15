@@ -1,0 +1,68 @@
+---
+- name: Download and extract Grafana
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: install_binary
+  vars:
+    common_ib_name: grafana
+    common_ib_url: "https://dl.grafana.com/oss/release/grafana-{{ grafana_version }}.linux-amd64.tar.gz"
+    common_ib_checksum: "{{ ('sha256:' ~ grafana_tarball_sha256) if grafana_tarball_sha256 else omit }}"
+    common_ib_extracted_dir: "grafana-v{{ grafana_version }}"
+    common_ib_binaries: []
+
+- name: Point the current Grafana symlink at this version
+  ansible.builtin.file:
+    src: "{{ obs_install_dir }}/src/grafana-v{{ grafana_version }}"
+    dest: "{{ obs_install_dir }}/grafana"
+    state: link
+  notify: Restart Grafana
+
+- name: Create Grafana directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0755"
+  loop:
+    - "{{ obs_config_dir }}/grafana"
+    - "{{ obs_config_dir }}/grafana/provisioning/datasources"
+    - "{{ obs_config_dir }}/grafana/provisioning/dashboards"
+    - "{{ obs_config_dir }}/grafana/provisioning/plugins"
+    - "{{ obs_config_dir }}/grafana/provisioning/alerting"
+    - "{{ obs_config_dir }}/grafana/dashboards"
+    - "{{ obs_data_dir }}/grafana"
+    - "{{ obs_log_dir }}/grafana"
+
+- name: Write grafana.ini and provisioning files
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ obs_config_dir }}/grafana/{{ item.dest }}"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0640"
+  loop:
+    - { src: grafana.ini.j2, dest: grafana.ini }
+    - { src: datasource.yml.j2, dest: provisioning/datasources/prometheus.yml }
+    - { src: dashboard-provider.yml.j2, dest: provisioning/dashboards/provider.yml }
+  notify: Restart Grafana
+
+- name: Install the SLO overview dashboard
+  ansible.builtin.copy:
+    src: slo-overview.json
+    dest: "{{ obs_config_dir }}/grafana/dashboards/slo-overview.json"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0644"
+
+- name: Run Grafana as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: grafana
+    common_svc_workdir: "{{ obs_install_dir }}/grafana"
+    common_svc_exec: >-
+      {{ obs_install_dir }}/grafana/bin/grafana server
+      --homepath={{ obs_install_dir }}/grafana
+      --config={{ obs_config_dir }}/grafana/grafana.ini

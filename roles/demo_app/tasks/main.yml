@@ -1,0 +1,62 @@
+---
+- name: Install Python venv support
+  ansible.builtin.apt:
+    name: [python3-venv, python3-pip]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Create app and log directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0755"
+  loop:
+    - "{{ demo_app_dir }}"
+    - "{{ obs_log_dir }}/demo-app"
+
+- name: Copy the demo app
+  ansible.builtin.copy:
+    src: "app/{{ item }}"
+    dest: "{{ demo_app_dir }}/{{ item }}"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0644"
+  loop: [main.py, loadgen.py, requirements.txt]
+  notify: Restart demo app
+
+- name: Install Python dependencies into a virtualenv
+  ansible.builtin.pip:
+    requirements: "{{ demo_app_dir }}/requirements.txt"
+    virtualenv: "{{ demo_app_dir }}/venv"
+    virtualenv_command: python3 -m venv
+  notify: Restart demo app
+
+- name: Run the demo app as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: demo-app
+    common_svc_workdir: "{{ demo_app_dir }}"
+    common_svc_env:
+      SERVICE_NAME: "{{ slo_service }}"
+      ERROR_RATE: "{{ demo_app_error_rate }}"
+      LOG_FILE: "{{ obs_log_dir }}/demo-app/app.log"
+      HONEYCOMB_API_KEY: "{{ honeycomb_api_key }}"
+    common_svc_exec: "{{ demo_app_dir }}/venv/bin/uvicorn main:app --host 127.0.0.1 --port {{ demo_app_port }} --no-access-log"
+
+- name: Run the load generator as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: demo-app-loadgen
+    common_svc_env:
+      TARGET_URL: "http://127.0.0.1:{{ demo_app_port }}/checkout"
+      RPS: "{{ demo_app_loadgen_rps }}"
+    common_svc_exec: "{{ demo_app_dir }}/venv/bin/python {{ demo_app_dir }}/loadgen.py"
+  when: demo_app_loadgen_enabled | bool

@@ -1,0 +1,19 @@
+---
+- name: Install node_exporter
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: install_binary
+  vars:
+    common_ib_name: node_exporter
+    common_ib_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    common_ib_checksum: "sha256:https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/sha256sums.txt"
+    common_ib_extracted_dir: "node_exporter-{{ node_exporter_version }}.linux-amd64"
+    common_ib_binaries: [node_exporter]
+
+- name: Run node_exporter as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: node_exporter
+    common_svc_exec: "{{ obs_install_dir }}/bin/node_exporter --web.listen-address=:{{ node_exporter_port }}"

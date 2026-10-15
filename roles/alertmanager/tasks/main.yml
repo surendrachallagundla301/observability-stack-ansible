@@ -1,0 +1,45 @@
+---
+- name: Install Alertmanager and amtool
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: install_binary
+  vars:
+    common_ib_name: alertmanager
+    common_ib_url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.linux-amd64.tar.gz"
+    common_ib_checksum: "sha256:https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/sha256sums.txt"
+    common_ib_extracted_dir: "alertmanager-{{ alertmanager_version }}.linux-amd64"
+    common_ib_binaries: [alertmanager, amtool]
+
+- name: Create Alertmanager directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0755"
+  loop:
+    - "{{ obs_config_dir }}/alertmanager"
+    - "{{ obs_data_dir }}/alertmanager"
+
+- name: Write alertmanager.yml (validated with amtool)
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: "{{ obs_config_dir }}/alertmanager/alertmanager.yml"
+    owner: "{{ obs_user }}"
+    group: "{{ obs_group }}"
+    mode: "0640"
+    validate: "{{ obs_install_dir }}/bin/amtool check-config %s"
+  notify: Reload Alertmanager
+
+- name: Run Alertmanager as a service
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: service
+  vars:
+    common_svc_name: alertmanager
+    common_svc_exec: >-
+      {{ obs_install_dir }}/bin/alertmanager
+      --config.file={{ obs_config_dir }}/alertmanager/alertmanager.yml
+      --storage.path={{ obs_data_dir }}/alertmanager
+      --web.listen-address=:{{ alertmanager_port }}
+      --cluster.listen-address=

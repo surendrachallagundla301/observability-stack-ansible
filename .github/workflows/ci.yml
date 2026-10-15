@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ansible-core ansible-lint yamllint
+      - run: yamllint .
+      - run: ansible-lint
+      - run: ansible-playbook site.yml --syntax-check
+
+  alert-rules:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install ansible-core
+      - name: Install promtool
+        run: |
+          curl -fsSL https://github.com/prometheus/prometheus/releases/download/v2.53.2/prometheus-2.53.2.linux-amd64.tar.gz | tar xz
+          sudo mv prometheus-2.53.2.linux-amd64/promtool /usr/local/bin/
+      - run: ansible-playbook tests/render-rules.yml
+      - run: promtool check rules tests/build/*.yml
+      - run: promtool test rules tests/rules_test.yml
+
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: [lint, alert-rules]
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install ansible-core
+      - name: Deploy the full stack with systemd
+        run: ansible-playbook site.yml
+      - name: Second run must change nothing (idempotence)
+        run: |
+          ansible-playbook site.yml | tee second-run.log
+          grep -qE 'changed=0 +unreachable=0 +failed=0' second-run.log
+      - name: End-to-end smoke test
+        run: sudo tests/smoke.sh
+      - name: Show service logs on failure
+        if: failure()
+        run: sudo journalctl -u prometheus -u alertmanager -u vector -u grafana -u demo-app --no-pager -n 100

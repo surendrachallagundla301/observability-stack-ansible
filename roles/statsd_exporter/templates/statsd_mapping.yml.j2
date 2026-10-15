@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+# Turns dotted StatsD names (demo_app.checkout.orders) into labelled
+# Prometheus metrics. The first matching rule wins, so specific rules go first.
+mappings:
+  - match: "*.*.duration_ms"
+    observer_type: histogram
+    name: "statsd_app_duration_ms"
+    labels:
+      app: "$1"
+      component: "$2"
+  - match: "*.*.*"
+    name: "statsd_app_events_total"
+    labels:
+      app: "$1"
+      component: "$2"
+      event: "$3"

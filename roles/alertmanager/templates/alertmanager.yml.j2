@@ -1,0 +1,31 @@
+# {{ ansible_managed }}
+route:
+  receiver: ticket
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="page"']
+      receiver: page
+      repeat_interval: 1h
+
+# Do not send a ticket for something that is already paging.
+inhibit_rules:
+  - source_matchers: ['severity="page"']
+    target_matchers: ['severity="ticket"']
+    equal: [alertname, service]
+
+receivers:
+  - name: page
+    webhook_configs:
+      - url: "http://127.0.0.1:{{ demo_app_port | default(8000) }}/alertmanager-webhook?receiver=page"
+{% if alertmanager_slack_webhook_url %}
+    slack_configs:
+      - api_url: "{{ alertmanager_slack_webhook_url }}"
+        channel: "{{ alertmanager_slack_channel }}"
+        send_resolved: true
+{% endif %}
+  - name: ticket
+    webhook_configs:
+      - url: "http://127.0.0.1:{{ demo_app_port | default(8000) }}/alertmanager-webhook?receiver=ticket"

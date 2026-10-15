@@ -1,0 +1,4 @@
+tests/build/
+*.retry
+__pycache__/
+.venv/

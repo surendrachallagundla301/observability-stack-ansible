@@ -1,0 +1,21 @@
+---
+# Renders the Prometheus rule templates so promtool can unit-test them.
+- name: Render Prometheus rule files for testing
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Create build directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/build"
+        state: directory
+        mode: "0755"
+
+    - name: Render rule templates
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/prometheus/templates/{{ item }}.j2"
+        dest: "{{ playbook_dir }}/build/{{ item }}"
+        mode: "0644"
+      loop:
+        - slo.rules.yml
+        - infrastructure.rules.yml

@@ -1,0 +1,6 @@
+---
+alertmanager_version: "0.27.0"
+alertmanager_port: 9093
+# Set to a Slack incoming-webhook URL to also send pages to Slack.
+alertmanager_slack_webhook_url: ""
+alertmanager_slack_channel: "#alerts"

@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+[Unit]
+Description={{ common_svc_name }}
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ common_svc_user | default(obs_user) }}
+Group={{ obs_group }}
+{% if common_svc_workdir is defined %}
+WorkingDirectory={{ common_svc_workdir }}
+{% endif %}
+{% for key, value in (common_svc_env | default({})).items() %}
+Environment="{{ key }}={{ value }}"
+{% endfor %}
+ExecStart={{ common_svc_exec }}
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

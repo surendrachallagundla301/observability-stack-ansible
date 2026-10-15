@@ -1,0 +1,7 @@
+---
+vector_version: "0.41.1"
+vector_prometheus_port: 9598
+vector_api_port: 8686
+# Log files Vector tails. Each line is expected to be JSON.
+vector_log_paths:
+  - "{{ obs_log_dir }}/demo-app/*.log"
